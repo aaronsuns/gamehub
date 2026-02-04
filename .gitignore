@@ -1,0 +1,5 @@
+.env
+exploration/
+ignore/
+integration/
+**/integration/
