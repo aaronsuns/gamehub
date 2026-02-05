@@ -5,6 +5,8 @@ HTTP server in Go that wraps the Atlas esports data API, exposing live series, p
 ## Endpoints
 
 - `GET /health` — Health check for liveness/readiness probes (no rate limit)
+- `GET /monitor` — HTML dashboard with metrics graphs (no rate limit)
+- `GET /stats` — JSON metrics for polling (no rate limit)
 - `GET /series/live` — Live/ongoing series
 - `GET /players/live` — Players in live series
 - `GET /teams/live` — Teams in live series
@@ -78,11 +80,21 @@ make docker-test
 ```bash
 make test          # Unit tests
 make lint          # Lint (runs in Docker, same as CI)
-make loadtest      # Load test (server must be running; start with 'make run' in another terminal)
-# Expect: first ~60 requests return 200, rest return 429
 ```
 
 CI runs on push/PR to `main`: lint and unit tests in a container.
+
+### Monitor (metrics dashboard)
+
+Run the stress test in Docker (run `make kill-8080` first if something is already on 8080):
+
+```bash
+make stress-demo-docker
+```
+
+Opens the container, prints the monitor URL, runs the load test. Open http://localhost:8080/monitor before it starts. Use `make stop` to stop, `make kill-8080` to free port 8080.
+
+See [docs/STRESS_TEST_RESULT.md](docs/STRESS_TEST_RESULT.md) for test configuration, example results, and how to interpret the graphs.
 
 ### Integration tests (real API)
 

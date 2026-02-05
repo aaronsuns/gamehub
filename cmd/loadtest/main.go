@@ -15,9 +15,10 @@ func main() {
 	url := flag.String("url", "http://localhost:8080", "Base URL of the server")
 	n := flag.Int("n", 80, "Number of requests to send")
 	delay := flag.Duration("delay", 50*time.Millisecond, "Delay between requests")
+	path := flag.String("path", "/series/live", "Path to hit (use /players/live with GAMEHUB_PAGE_SIZE=5 to trigger Atlas 429s)")
 	flag.Parse()
 
-	base := *url + "/series/live"
+	base := *url + *path
 	fmt.Printf("Load test: %d requests to %s\n", *n, base)
 	fmt.Println("Expect: first ~60 succeed (200), rest get 429")
 	fmt.Println()

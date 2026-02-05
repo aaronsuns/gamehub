@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>GameHub Monitor</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 1rem; }
+    h1 { margin-bottom: 0.5rem; }
+    .totals { display: flex; gap: 2rem; margin-bottom: 1rem; }
+    .totals span { font-weight: bold; }
+    .chart { max-width: 900px; height: 300px; margin-bottom: 2rem; }
+  </style>
+</head>
+<body>
+  <h1>GameHub Monitor</h1>
+  <p>Refreshes every 2s. Use <code>make stress-demo-docker</code> to run loadtest.</p>
+  <div class="totals">
+    <div>Inbound requests (clients → GameHub): <span id="total">0</span></div>
+    <div>200 OK (successful): <span id="ok">0</span></div>
+    <div>Our 429 (we rate-limited client): <span id="inbound429">0</span></div>
+    <div>Atlas 429 (Atlas rate-limited us): <span id="atlas429">0</span></div>
+    <div>Our Retry-After (s): <span id="inboundRetryAfter">0</span></div>
+    <div>Atlas Retry-After (ms): <span id="atlasRetryAfter">0</span></div>
+  </div>
+  <div class="chart"><canvas id="chart"></canvas></div>
+  <h2 style="margin-top: 2rem; margin-bottom: 0.5rem;">Retry-After (when 429 hit)</h2>
+  <div class="chart"><canvas id="retryChart"></canvas></div>
+  <script>
+    const ctx = document.getElementById('chart').getContext('2d');
+    const chart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: [],
+        datasets: [
+          { label: 'inbound req/s', data: [], borderColor: '#4CAF50', fill: false },
+          { label: '200 ok/s', data: [], borderColor: '#2196F3', fill: false },
+          { label: 'our 429/s', data: [], borderColor: '#FF9800', fill: false },
+          { label: 'Atlas 429/s', data: [], borderColor: '#f44336', fill: false }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          x: { display: true },
+          y: { type: 'linear', position: 'left', beginAtZero: true }
+        }
+      }
+    });
+
+    const retryCtx = document.getElementById('retryChart').getContext('2d');
+    const retryChart = new Chart(retryCtx, {
+      type: 'line',
+      data: {
+        labels: [],
+        datasets: [
+          { label: 'Our Retry-After (s)', data: [], borderColor: '#795548', borderDash: [5,5], fill: false, yAxisID: 'y' },
+          { label: 'Atlas Retry-After (ms)', data: [], borderColor: '#9C27B0', borderDash: [5,5], fill: false, yAxisID: 'y1' }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          x: { display: true },
+          y: { type: 'linear', position: 'left', beginAtZero: true, title: { display: true, text: 'seconds' } },
+          y1: { type: 'linear', position: 'right', beginAtZero: true, grid: { drawOnChartArea: false }, title: { display: true, text: 'ms' } }
+        }
+      }
+    });
+
+    function fetchStats() {
+      fetch('/stats')
+        .then(r => r.json())
+        .then(d => {
+          document.getElementById('total').textContent = d.total.requests;
+          document.getElementById('ok').textContent = d.total.ok;
+          document.getElementById('inbound429').textContent = d.total.inbound_429;
+          document.getElementById('atlas429').textContent = d.total.atlas_429;
+          document.getElementById('inboundRetryAfter').textContent = d.total.inbound_retry_after_s || 0;
+          document.getElementById('atlasRetryAfter').textContent = d.total.atlas_retry_after_ms || 0;
+
+          const h = d.history || [];
+          const labels = h.map(s => new Date(s.t * 1000).toLocaleTimeString());
+          chart.data.labels = labels;
+          chart.data.datasets[0].data = h.map(s => s.req);
+          chart.data.datasets[1].data = h.map(s => s.ok);
+          chart.data.datasets[2].data = h.map(s => s.inbound_429);
+          chart.data.datasets[3].data = h.map(s => s.atlas_429);
+          chart.update('none');
+
+          retryChart.data.labels = labels;
+          retryChart.data.datasets[0].data = h.map(s => s.inbound_retry_after_s || 0);
+          retryChart.data.datasets[1].data = h.map(s => s.atlas_retry_after_ms || 0);
+          retryChart.update('none');
+        })
+        .catch(e => console.error(e));
+    }
+
+    fetchStats();
+    setInterval(fetchStats, 2000);
+  </script>
+</body>
+</html>

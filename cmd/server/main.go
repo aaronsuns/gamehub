@@ -13,6 +13,7 @@ import (
 	"github.com/aaron/gamehub/internal/config"
 	"github.com/aaron/gamehub/internal/handlers"
 	"github.com/aaron/gamehub/internal/live"
+	"github.com/aaron/gamehub/internal/metrics"
 	"github.com/aaron/gamehub/internal/middleware"
 )
 
@@ -34,14 +35,18 @@ func main() {
 	limiter := middleware.NewLimiter(config.InboundRateLimitRequests(), config.InboundRateLimitPer())
 	mainMux := http.NewServeMux()
 	mainMux.HandleFunc("GET /health", handlers.Health)
+	mainMux.HandleFunc("GET /monitor", metrics.ServeMonitor)
+	mainMux.HandleFunc("GET /stats", metrics.ServeJSON)
 	mainMux.Handle("/", limiter.Middleware(apiMux))
+
+	handler := metrics.Middleware(mainMux)
 
 	addr := ":8080"
 	if port := os.Getenv("PORT"); port != "" {
 		addr = ":" + port
 	}
 
-	srv := &http.Server{Addr: addr, Handler: mainMux}
+	srv := &http.Server{Addr: addr, Handler: handler}
 	go func() {
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatal(err)

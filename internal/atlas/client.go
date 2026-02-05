@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/aaron/gamehub/internal/config"
+	"github.com/aaron/gamehub/internal/metrics"
 )
 
 const (
@@ -96,6 +97,8 @@ func (c *Client) Get(ctx context.Context, path string) ([]byte, *RateLimit, erro
 	if resp.StatusCode == http.StatusTooManyRequests {
 		retryMs := parseRetryAfter(resp.Header.Get("Retry-After"))
 		c.setBackoff(retryMs)
+		metrics.Atlas429.Add(1)
+		metrics.RecordAtlasRetryAfter(retryMs)
 		return nil, rl, &ErrRateLimited{RetryAfterMs: retryMs}
 	}
 

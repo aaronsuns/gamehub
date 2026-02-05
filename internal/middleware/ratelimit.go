@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/aaron/gamehub/internal/config"
+	"github.com/aaron/gamehub/internal/metrics"
 )
 
 // Limiter implements a static per-IP rate limit using a token bucket.
@@ -97,7 +98,10 @@ func (l *Limiter) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ip := getClientIP(r)
 		if !l.Allow(ip) {
-			w.Header().Set("Retry-After", fmt.Sprintf("%d", config.InboundRetryAfterSec()))
+			metrics.Inbound429.Add(1)
+			retrySec := config.InboundRetryAfterSec()
+			metrics.RecordInboundRetryAfter(retrySec)
+			w.Header().Set("Retry-After", fmt.Sprintf("%d", retrySec))
 			http.Error(w, "rate limited", http.StatusTooManyRequests)
 			return
 		}
