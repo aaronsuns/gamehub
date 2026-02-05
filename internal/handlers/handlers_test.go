@@ -11,7 +11,7 @@ import (
 func TestWriteError_RateLimited(t *testing.T) {
 	w := httptest.NewRecorder()
 	err := &atlas.ErrRateLimited{RetryAfterMs: 500}
-	writeError(w, err, nil)
+	writeError(w, err)
 
 	if w.Code != http.StatusTooManyRequests {
 		t.Errorf("want 429, got %d", w.Code)

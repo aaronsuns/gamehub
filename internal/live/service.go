@@ -33,6 +33,7 @@ func (s *Service) loadLiveContext(ctx context.Context) (LiveContext, error) {
 	if len(rosterIDs) == 0 {
 		return LiveContext{TeamIDs: []int{}, PlayerIDs: []int{}}, nil
 	}
+	// Server-side filter: Atlas API returns only these rosters (Multiple Rosters by id).
 	rostersBody, _, err := s.client.GetRostersAll(ctx, map[string]string{
 		"filter": atlas.FilterIDIn(rosterIDs),
 	})
