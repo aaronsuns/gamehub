@@ -44,6 +44,10 @@ The numbers always add up: **Inbound = 200 OK + Our 429 + Atlas 429**.
 | Our 429 | 199 | Requests we rate-limited (client hit our limit) |
 | Atlas 429 | 3 | Requests where Atlas rate-limited us |
 
+Another run (360 inbound, 107 OK, 192 our 429, 61 Atlas 429):
+
+![Stress test run 2](stress-test-result-2.png)
+
 ## How to Interpret the Graphs
 
 ### Top chart: Request rates (req/s)
