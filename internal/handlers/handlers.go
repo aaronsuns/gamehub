@@ -20,6 +20,13 @@ func New(atlasClient *atlas.Client, liveService *live.Service) *Handler {
 	return &Handler{Atlas: atlasClient, Live: liveService}
 }
 
+// Health returns 200 OK for liveness/readiness probes.
+func Health(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(`{"status":"ok"}`))
+}
+
 // SeriesLive returns currently live/ongoing series.
 func (h *Handler) SeriesLive(w http.ResponseWriter, r *http.Request) {
 	params := map[string]string{"filter": "lifecycle=live"}

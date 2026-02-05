@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"strconv"
 	"testing"
+	"time"
 )
 
 func TestGetAllPages_ContinuesPastFullPage(t *testing.T) {
@@ -65,6 +66,41 @@ func TestGetAllPages_ContinuesPastFullPage(t *testing.T) {
 
 func parseInt(s string) (int, error) {
 	return strconv.Atoi(s)
+}
+
+func TestGet_OutboundRateLimit(t *testing.T) {
+	// Server returns 429 with Retry-After: 50ms.
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Retry-After", "50")
+		w.WriteHeader(http.StatusTooManyRequests)
+		_, _ = w.Write([]byte("rate limited"))
+	}))
+	defer server.Close()
+
+	client := NewClientWithURL("test-secret", server.URL)
+	ctx := context.Background()
+
+	// First request: gets 429, sets backoff
+	_, _, err := client.Get(ctx, "/test")
+	if err == nil {
+		t.Fatal("want ErrRateLimited, got nil")
+	}
+	if _, ok := err.(*ErrRateLimited); !ok {
+		t.Fatalf("want ErrRateLimited, got %T", err)
+	}
+
+	// Second request: must wait ~50ms (backoff) before sending
+	start := time.Now()
+	_, _, err = client.Get(ctx, "/test")
+	if err == nil {
+		t.Fatal("want ErrRateLimited, got nil")
+	}
+	elapsed := time.Since(start)
+
+	// Allow 5ms tolerance
+	if elapsed < 45*time.Millisecond {
+		t.Errorf("outbound backoff: elapsed %v, want >= 45ms (should wait Retry-After)", elapsed)
+	}
 }
 
 func TestFilterIDIn(t *testing.T) {

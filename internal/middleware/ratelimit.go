@@ -40,6 +40,11 @@ func (l *Limiter) Allow(ip string) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
+	// Opportunistic eviction of stale buckets to prevent unbounded memory growth.
+	if len(l.buckets) > config.InboundBucketEvictThreshold() {
+		l.evictStaleLocked()
+	}
+
 	b, ok := l.buckets[ip]
 	if !ok {
 		l.buckets[ip] = &bucket{tokens: l.requests - 1, lastFill: time.Now()}
@@ -69,12 +74,30 @@ func (l *Limiter) Allow(ip string) bool {
 	return true
 }
 
+// bucketCount returns the number of buckets (for testing).
+func (l *Limiter) bucketCount() int {
+	l.mu.Lock()
+	n := len(l.buckets)
+	l.mu.Unlock()
+	return n
+}
+
+// evictStaleLocked removes buckets unused for InboundBucketMaxStale.
+func (l *Limiter) evictStaleLocked() {
+	cutoff := time.Now().Add(-config.InboundBucketMaxStale())
+	for ip, b := range l.buckets {
+		if b.lastFill.Before(cutoff) {
+			delete(l.buckets, ip)
+		}
+	}
+}
+
 // Middleware returns an HTTP middleware that rate limits by client IP.
 func (l *Limiter) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ip := getClientIP(r)
 		if !l.Allow(ip) {
-			w.Header().Set("Retry-After", fmt.Sprintf("%d", config.InboundRetryAfterSec))
+			w.Header().Set("Retry-After", fmt.Sprintf("%d", config.InboundRetryAfterSec()))
 			http.Error(w, "rate limited", http.StatusTooManyRequests)
 			return
 		}

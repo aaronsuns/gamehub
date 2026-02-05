@@ -1,8 +1,10 @@
 package middleware
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 	"time"
 )
@@ -79,5 +81,37 @@ func TestMiddleware_Returns429(t *testing.T) {
 	}
 	if retry := rec.Header().Get("Retry-After"); retry != "60" {
 		t.Errorf("want Retry-After: 60, got %q", retry)
+	}
+}
+
+func TestLimiter_EvictStale(t *testing.T) {
+	origThreshold := os.Getenv("GAMEHUB_INBOUND_BUCKET_EVICT_THRESHOLD")
+	origMaxStale := os.Getenv("GAMEHUB_INBOUND_BUCKET_MAX_STALE")
+	_ = os.Setenv("GAMEHUB_INBOUND_BUCKET_EVICT_THRESHOLD", "3")
+	_ = os.Setenv("GAMEHUB_INBOUND_BUCKET_MAX_STALE", "1ms")
+	defer func() {
+		_ = os.Setenv("GAMEHUB_INBOUND_BUCKET_EVICT_THRESHOLD", origThreshold)
+		_ = os.Setenv("GAMEHUB_INBOUND_BUCKET_MAX_STALE", origMaxStale)
+	}()
+
+	limiter := NewLimiter(60, time.Minute)
+
+	// Create 4 buckets (over threshold 3)
+	for i := 1; i <= 4; i++ {
+		limiter.Allow(fmt.Sprintf("192.168.1.%d", i))
+	}
+
+	if n := limiter.bucketCount(); n != 4 {
+		t.Fatalf("after 4 IPs: got %d buckets, want 4", n)
+	}
+
+	// Wait for buckets to become stale
+	time.Sleep(2 * time.Millisecond)
+
+	// Allow from IP 1 triggers eviction; IPs 2,3,4 are stale and removed
+	limiter.Allow("192.168.1.1")
+
+	if n := limiter.bucketCount(); n != 1 {
+		t.Errorf("after eviction: got %d buckets, want 1 (stale IPs evicted)", n)
 	}
 }

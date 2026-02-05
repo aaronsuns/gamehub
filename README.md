@@ -4,6 +4,7 @@ HTTP server in Go that wraps the Atlas esports data API, exposing live series, p
 
 ## Endpoints
 
+- `GET /health` — Health check for liveness/readiness probes (no rate limit)
 - `GET /series/live` — Live/ongoing series
 - `GET /players/live` — Players in live series
 - `GET /teams/live` — Teams in live series
@@ -92,3 +93,13 @@ make integration-test
 Runs against the real Atlas API, verifies HTTP 200 and valid JSON, writes responses to a local output folder. Skipped if `ATLAS_API_KEY` is unset.
 
 Set `GAMEHUB_DEBUG=1` to enable debug output (e.g. pagination requests).
+
+### Configuration (environment variables)
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `GAMEHUB_INBOUND_RATE_LIMIT` | 60 | Max requests per IP per window |
+| `GAMEHUB_INBOUND_RATE_LIMIT_PER` | 1m | Rate limit window |
+| `GAMEHUB_LIVE_CACHE_TTL` | 10s | Live context cache TTL |
+| `GAMEHUB_ATLAS_OUTBOUND_MIN_BACKOFF` | 1s | Min backoff on 429 when Retry-After is missing |
+| `GAMEHUB_PAGE_SIZE` | 50 | Atlas pagination page size |

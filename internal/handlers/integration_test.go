@@ -53,7 +53,7 @@ func TestIntegration_LiveEndpoints(t *testing.T) {
 	}
 
 	client := atlas.NewClient(secret)
-	liveSvc := live.NewService(client, config.LiveCacheTTL)
+	liveSvc := live.NewService(client, config.LiveCacheTTL())
 	h := New(client, liveSvc)
 
 	mux := http.NewServeMux()

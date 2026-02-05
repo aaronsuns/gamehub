@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"sync"
+	"time"
 
 	"github.com/aaron/gamehub/internal/config"
 )
@@ -25,11 +27,14 @@ type RateLimit struct {
 	ResetMs   int
 }
 
-// Client is an Atlas API client.
+// Client is an Atlas API client with reactive outbound rate limiting.
+// Throttles only after receiving 429 from Atlas; respects Retry-After.
 type Client struct {
-	baseURL    string
-	secret     string
-	httpClient *http.Client
+	baseURL         string
+	secret          string
+	httpClient      *http.Client
+	outMu           sync.Mutex
+	outBackoffUntil time.Time // don't send before this (zero = no backoff)
 }
 
 // NewClient creates an Atlas API client.
@@ -43,7 +48,7 @@ func NewClientWithURL(secret, baseURL string) *Client {
 		baseURL: baseURL,
 		secret:  secret,
 		httpClient: &http.Client{
-			Timeout: config.AtlasClientTimeout,
+			Timeout: config.AtlasClientTimeout(),
 		},
 	}
 }
@@ -60,6 +65,9 @@ func (e *ErrRateLimited) Error() string {
 // Get performs a GET request and returns body, rate limit info, and error.
 // On 429, returns ErrRateLimited with RetryAfterMs from the Retry-After header.
 func (c *Client) Get(ctx context.Context, path string) ([]byte, *RateLimit, error) {
+	if err := c.waitOutbound(ctx); err != nil {
+		return nil, nil, err
+	}
 	url := c.baseURL + path
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
@@ -87,6 +95,7 @@ func (c *Client) Get(ctx context.Context, path string) ([]byte, *RateLimit, erro
 
 	if resp.StatusCode == http.StatusTooManyRequests {
 		retryMs := parseRetryAfter(resp.Header.Get("Retry-After"))
+		c.setBackoff(retryMs)
 		return nil, rl, &ErrRateLimited{RetryAfterMs: retryMs}
 	}
 
@@ -95,6 +104,33 @@ func (c *Client) Get(ctx context.Context, path string) ([]byte, *RateLimit, erro
 	}
 
 	return body, rl, nil
+}
+
+// waitOutbound waits until any active backoff (from 429) has elapsed.
+func (c *Client) waitOutbound(ctx context.Context) error {
+	c.outMu.Lock()
+	until := c.outBackoffUntil
+	c.outMu.Unlock()
+	if until.IsZero() || time.Now().After(until) {
+		return nil
+	}
+	sleep := time.Until(until)
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-time.After(sleep):
+	}
+	return nil
+}
+
+// setBackoff records that we received 429; next request will wait retryMs.
+func (c *Client) setBackoff(retryMs int) {
+	if retryMs <= 0 {
+		retryMs = int(config.AtlasOutboundMinBackoff().Milliseconds())
+	}
+	c.outMu.Lock()
+	c.outBackoffUntil = time.Now().Add(time.Duration(retryMs) * time.Millisecond)
+	c.outMu.Unlock()
 }
 
 func buildPath(base string, params map[string]string) string {
@@ -134,13 +170,13 @@ func (c *Client) GetRosters(ctx context.Context, params map[string]string) ([]by
 func (c *Client) getAllPages(ctx context.Context, path string, baseParams map[string]string) ([]byte, *RateLimit, error) {
 	var all []json.RawMessage
 	var lastRL *RateLimit
-	for skip := 0; ; skip += config.PageSize {
+	for skip := 0; ; skip += config.PageSize() {
 		params := make(map[string]string)
 		for k, v := range baseParams {
 			params[k] = v
 		}
 		params["skip"] = strconv.Itoa(skip)
-		params["take"] = strconv.Itoa(config.PageSize)
+		params["take"] = strconv.Itoa(config.PageSize())
 
 		body, rl, err := c.Get(ctx, buildPath(path, params))
 		if err != nil {
@@ -157,7 +193,7 @@ func (c *Client) getAllPages(ctx context.Context, path string, baseParams map[st
 		}
 		all = append(all, page...)
 		// Stop when fewer than take (includes empty array)
-		if len(page) < config.PageSize {
+		if len(page) < config.PageSize() {
 			break
 		}
 	}
