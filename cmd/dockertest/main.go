@@ -12,7 +12,13 @@ import (
 	"time"
 )
 
-const baseURL = "http://localhost:8080"
+func baseURL() string {
+	if u := os.Getenv("GAMEHUB_DOCKERTEST_URL"); u != "" {
+		return u
+	}
+	return "http://localhost:8080"
+}
+
 const maxShow = 8
 
 func itemName(path string, m map[string]interface{}) string {
@@ -44,7 +50,7 @@ func itemName(path string, m map[string]interface{}) string {
 
 func fetchAndSummarize(path string) error {
 	client := &http.Client{Timeout: 30 * time.Second}
-	resp, err := client.Get(baseURL + path)
+	resp, err := client.Get(baseURL() + path)
 	if err != nil {
 		return fmt.Errorf("request failed: %w", err)
 	}
@@ -60,7 +66,6 @@ func fetchAndSummarize(path string) error {
 	if ct := resp.Header.Get("Content-Type"); !strings.Contains(ct, "application/json") {
 		return fmt.Errorf("Content-Type: want application/json, got %s", ct)
 	}
-
 	var arr []json.RawMessage
 	dec := json.NewDecoder(resp.Body)
 	if err := dec.Decode(&arr); err != nil {
