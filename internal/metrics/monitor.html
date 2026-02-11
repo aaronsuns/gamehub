@@ -5,26 +5,57 @@
   <title>GameHub Monitor</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
-    body { font-family: system-ui, sans-serif; margin: 1rem; }
-    h1 { margin-bottom: 0.5rem; }
-    .totals { display: flex; gap: 2rem; margin-bottom: 1rem; }
-    .totals span { font-weight: bold; }
-    .chart { max-width: 900px; height: 300px; margin-bottom: 2rem; }
+    body { font-family: system-ui, sans-serif; margin: 0.75rem; }
+    h1 { margin-bottom: 0.25rem; font-size: 1.5rem; }
+    h2 { margin-top: 1rem; margin-bottom: 0.25rem; font-size: 1.1rem; }
+    table.metrics { border-collapse: collapse; margin-bottom: 1rem; width: 100%; max-width: 700px; font-size: 0.65rem; }
+    table.metrics th, table.metrics td { padding: 0.3rem 0.45rem; text-align: left; border-bottom: 1px solid #e0e0e0; }
+    table.metrics th { background-color: #f5f5f5; font-weight: 600; font-size: 0.65rem; }
+    table.metrics td { font-weight: bold; }
+    table.metrics tr:hover { background-color: #fafafa; }
+    .chart { max-width: 900px; height: 250px; margin-bottom: 1rem; }
   </style>
 </head>
 <body>
   <h1>GameHub Monitor</h1>
-  <p>Refreshes every 2s. Use <code>make stress-demo-docker</code> to run loadtest.</p>
-  <div class="totals">
-    <div>Inbound requests (clients → GameHub): <span id="total">0</span></div>
-    <div>200 OK (successful): <span id="ok">0</span></div>
-    <div>Our 429 (we rate-limited client): <span id="inbound429">0</span></div>
-    <div>Atlas 429 (Atlas rate-limited us): <span id="atlas429">0</span></div>
-    <div>Our Retry-After (s): <span id="inboundRetryAfter">0</span></div>
-    <div>Atlas Retry-After (ms): <span id="atlasRetryAfter">0</span></div>
-  </div>
+  <p style="margin: 0.25rem 0 0.5rem 0; font-size: 0.85rem;">Refreshes every 2s. Use <code>make stress-demo-docker</code> to run loadtest.</p>
+  <button id="stopBtn" style="margin-bottom: 0.75rem; padding: 0.4rem 0.8rem; font-size: 0.85rem; cursor: pointer; background: #f44336; color: white; border: none; border-radius: 4px;">Stop Refresh</button>
+  <table class="metrics">
+    <thead>
+      <tr>
+        <th>Metric</th>
+        <th>Value</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Inbound requests (clients → GameHub)</td>
+        <td id="total">0</td>
+      </tr>
+      <tr>
+        <td>200 OK (successful)</td>
+        <td id="ok">0</td>
+      </tr>
+      <tr>
+        <td>Our 429 (we rate-limited client)</td>
+        <td id="inbound429">0</td>
+      </tr>
+      <tr>
+        <td>Atlas 429 (Atlas rate-limited us)</td>
+        <td id="atlas429">0</td>
+      </tr>
+      <tr>
+        <td>Our Retry-After (s)</td>
+        <td id="inboundRetryAfter">0</td>
+      </tr>
+      <tr>
+        <td>Atlas Retry-After (ms)</td>
+        <td id="atlasRetryAfter">0</td>
+      </tr>
+    </tbody>
+  </table>
   <div class="chart"><canvas id="chart"></canvas></div>
-  <h2 style="margin-top: 2rem; margin-bottom: 0.5rem;">Retry-After (when 429 hit)</h2>
+  <h2>Retry-After (when 429 hit)</h2>
   <div class="chart"><canvas id="retryChart"></canvas></div>
   <script>
     const ctx = document.getElementById('chart').getContext('2d');
@@ -70,6 +101,9 @@
       }
     });
 
+    let refreshInterval = null;
+    let isRefreshing = true;
+
     function fetchStats() {
       fetch('/stats')
         .then(r => r.json())
@@ -98,8 +132,22 @@
         .catch(e => console.error(e));
     }
 
+    function stopRefresh() {
+      if (refreshInterval !== null) {
+        clearInterval(refreshInterval);
+        refreshInterval = null;
+        isRefreshing = false;
+        const btn = document.getElementById('stopBtn');
+        btn.textContent = 'Refresh Stopped';
+        btn.style.background = '#757575';
+        btn.disabled = true;
+      }
+    }
+
+    document.getElementById('stopBtn').addEventListener('click', stopRefresh);
+
     fetchStats();
-    setInterval(fetchStats, 2000);
+    refreshInterval = setInterval(fetchStats, 2000);
   </script>
 </body>
 </html>

@@ -5,7 +5,7 @@
 # ============================================================================
 
 # Server Configuration
-PORT                    ?= 8080    # Port the server listens on (default: 8080)
+PORT                    ?= 8080 # Port the server listens on (default: 8080)
 GAMEHUB_DEBUG           ?=         # Enable debug logging (set to "1" to enable, shows pagination and other debug info)
 
 # Rate Limiting Configuration
@@ -112,7 +112,7 @@ stress-demo:
 	GAMEHUB_INBOUND_RATE_LIMIT_PER=$(GAMEHUB_INBOUND_RATE_LIMIT_PER) \
 	go run ./cmd/server & SERVER_PID=$$!; \
 	sleep 4; \
-	echo ""; echo "  >>> Open http://localhost:$(PORT)/monitor in your browser <<<"; echo ""; \
+	echo ""; echo "  >>> Open http://localhost:$$(echo $(PORT) | tr -d '[:space:]')/monitor in your browser <<<"; echo ""; \
 	sleep 2; \
 	STRESS_URL=$(STRESS_URL) \
 	STRESS_PATH=$(STRESS_PATH) \
@@ -126,27 +126,36 @@ stress-demo:
 
 # Stress demo in Docker: server in container, stress test from host
 stress-demo-docker: docker-build
+	@if [ -z "$${ATLAS_API_KEY}" ]; then \
+		echo "Error: ATLAS_API_KEY environment variable is not set"; \
+		exit 1; \
+	fi
 	@docker stop gamehub-stress 2>/dev/null; docker rm gamehub-stress 2>/dev/null; true
 	@echo "Starting container..."
-	@docker run -d \
+	@PORT_VAL=$$(echo $(PORT) | tr -d '[:space:]'); \
+	docker run -d \
 		-e ATLAS_API_KEY="$${ATLAS_API_KEY}" \
 		-e GAMEHUB_PAGE_SIZE=$(GAMEHUB_PAGE_SIZE) \
 		-e GAMEHUB_INBOUND_RATE_LIMIT=$(GAMEHUB_INBOUND_RATE_LIMIT) \
 		-e GAMEHUB_INBOUND_RATE_LIMIT_PER=$(GAMEHUB_INBOUND_RATE_LIMIT_PER) \
 		-e GAMEHUB_LIVE_CACHE_TTL=$(GAMEHUB_LIVE_CACHE_TTL) \
-		-p $(PORT):8080 \
-		--name gamehub-stress gamehub
-	@sleep 4
-	@echo ""; echo "  >>> Open http://localhost:$(PORT)/monitor in your browser <<<"; echo ""; sleep 2
-	@STRESS_URL=$(STRESS_URL) \
+		-p $$PORT_VAL:8080 \
+		--name gamehub-stress \
+		gamehub:latest
+	@trap 'echo ""; echo "Stopping container..."; docker stop gamehub-stress 2>/dev/null; docker rm gamehub-stress 2>/dev/null; echo "Container stopped."; exit 130' INT TERM; \
+	sleep 4; \
+	echo ""; echo "  >>> Open http://localhost:$$(echo $(PORT) | tr -d '[:space:]')/monitor in your browser <<<"; echo ""; sleep 2; \
+	STRESS_URL=$(STRESS_URL) \
 	STRESS_PATH=$(STRESS_PATH) \
 	STRESS_DURATION=$(STRESS_DURATION) \
 	STRESS_N=$(STRESS_N) \
 	STRESS_CONCURRENCY=$(STRESS_CONCURRENCY) \
 	STRESS_DELAY=$(STRESS_DELAY) \
 	STRESS_PROGRESS=$(STRESS_PROGRESS) \
-	go run ./cmd/stresstest
-	@echo ""; echo "Done. Container gamehub-stress still running. make stop to stop."
+	go run ./cmd/stresstest; \
+	echo ""; echo "Stopping container..."; \
+	docker stop gamehub-stress 2>/dev/null; docker rm gamehub-stress 2>/dev/null; \
+	echo "Done. Container stopped."
 
 # ============================================================================
 # DOCKER COMMANDS
@@ -158,6 +167,7 @@ docker-build:
 
 # Run Docker container
 docker-run: docker-build
+	@PORT_VAL=$$(echo $(PORT) | tr -d '[:space:]'); \
 	docker run \
 		-e ATLAS_API_KEY="$${ATLAS_API_KEY}" \
 		-e GAMEHUB_PAGE_SIZE=$(GAMEHUB_PAGE_SIZE) \
@@ -166,7 +176,7 @@ docker-run: docker-build
 		-e GAMEHUB_LIVE_CACHE_TTL=$(GAMEHUB_LIVE_CACHE_TTL) \
 		-e GAMEHUB_ATLAS_CLIENT_TIMEOUT=$(GAMEHUB_ATLAS_CLIENT_TIMEOUT) \
 		-e GAMEHUB_ATLAS_OUTBOUND_MIN_BACKOFF=$(GAMEHUB_ATLAS_OUTBOUND_MIN_BACKOFF) \
-		-p $(PORT):8080 \
+		-p $$PORT_VAL:8080 \
 		gamehub
 
 # Docker test: build, run container on 8081, test, stop
