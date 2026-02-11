@@ -132,8 +132,9 @@ stress-demo:
 	go run ./cmd/stresstest; \
 	echo ""; echo "Done. Server (PID $$SERVER_PID) still running. kill $$SERVER_PID to stop."
 
-# Stress demo in Docker: server in container, stress test from host
-stress-demo-docker: docker-build
+# Stress demo in Docker: server in container, stress test from host.
+# Uses cached image (gamehub:latest). Run 'make docker-build' first if code changed.
+stress-demo-docker:
 	@if [ -z "$${ATLAS_API_KEY}" ]; then \
 		echo "Error: ATLAS_API_KEY environment variable is not set"; \
 		exit 1; \
