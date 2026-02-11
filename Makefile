@@ -33,8 +33,8 @@ STRESS_PATH        ?= /players/live            # API endpoint path to stress tes
 STRESS_DURATION    ?= 5m                      # Duration to run continuously (e.g., 5m, 10m). Set to "0" to use request count mode instead
 STRESS_N           ?= 0                       # Total requests to send (only used if STRESS_DURATION=0, default: 0 = use duration mode)
 STRESS_CONCURRENCY ?= 4                       # Number of concurrent worker goroutines (default: 4 workers)
-STRESS_DELAY       ?= 1s                      # Delay between requests from each worker (default: 1s = ~1 req/s per worker)
-                                                # Rate calculation: 4 workers * 1 req/s = ~4 req/s = ~240 req/min (~2x the 120/min limit)
+STRESS_DELAY       ?= 500ms                   # Delay between requests from each worker (default: 500ms = ~2 req/s per worker)
+                                                # Rate calculation: 4 workers * 2 req/s = ~8 req/s = ~480 req/min (~4x the 120/min limit, hits limit after ~15s)
 STRESS_TIMEOUT     ?= 30s                     # HTTP client timeout for stress test requests (default: 30 seconds)
 STRESS_VERBOSE     ?=                         # Verbose output mode (set to "1" to see individual request details)
 STRESS_PROGRESS    ?= 1                       # Show progress updates every 10 seconds during long runs (set to "0" to disable, default: 1)
