@@ -9,13 +9,13 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/aaron/gamehub/internal/atlas"
 	"github.com/aaron/gamehub/internal/config"
 	"github.com/aaron/gamehub/internal/handlers"
 	"github.com/aaron/gamehub/internal/live"
 	"github.com/aaron/gamehub/internal/metrics"
 	"github.com/aaron/gamehub/internal/middleware"
+	"github.com/gin-gonic/gin"
 )
 
 func main() {
@@ -30,17 +30,17 @@ func main() {
 
 	// Set Gin to release mode for production
 	gin.SetMode(gin.ReleaseMode)
-	
+
 	router := gin.New()
-	
+
 	// Apply metrics middleware globally
 	router.Use(metrics.Middleware())
-	
+
 	// Health and monitoring endpoints (no rate limiting)
 	router.GET("/health", handlers.Health)
 	router.GET("/monitor", metrics.ServeMonitor)
 	router.GET("/stats", metrics.ServeJSON)
-	
+
 	// API endpoints with rate limiting
 	limiter := middleware.NewLimiter(config.InboundRateLimitRequests(), config.InboundRateLimitPer())
 	api := router.Group("/")
@@ -57,7 +57,7 @@ func main() {
 	}
 
 	srv := &http.Server{Addr: addr, Handler: router}
-	
+
 	// Determine the host for the monitor URL
 	host := "localhost"
 	if port := os.Getenv("PORT"); port != "" {
@@ -65,7 +65,7 @@ func main() {
 	} else {
 		host = host + ":8080"
 	}
-	
+
 	go func() {
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatal(err)

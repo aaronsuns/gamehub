@@ -3,45 +3,55 @@
 ## Request Flow
 
 ```
-Client ──▶ mainMux
-              ├── GET /health  ──────────────────────▶ 200 OK (no rate limit)
+Client ──▶ Gin Router
+              ├── GET /health, /monitor, /stats  ──▶ handlers (no rate limit)
               │
-              └── /             limiter.Middleware
-                                    │
-                                    ├── 429 if IP over limit (token bucket)
-                                    │
-                                    └── apiMux
-                                           ├── GET /series/live   ──▶ Atlas GetSeriesAll ──▶ JSON
-                                           ├── GET /players/live  ──▶ LiveContext ──▶ Atlas GetPlayersAll ──▶ JSON
-                                           └── GET /teams/live    ──▶ LiveContext ──▶ Atlas GetTeamsAll ──▶ JSON
+              └── API group (rate limited)
+                       limiter.Middleware (fixed window per IP)
+                            │
+                            ├── 429 if over limit (count in window)
+                            │
+                            └── Handlers (all serve from Live cache when valid)
+                                   ├── GET /series/live   ──▶ Live.GetLiveSeries()   ──▶ JSON (cached)
+                                   ├── GET /players/live  ──▶ Live.GetLivePlayers()  ──▶ JSON (cached)
+                                   └── GET /teams/live    ──▶ Live.GetLiveTeams()    ──▶ JSON (cached)
 ```
 
-## Live Context Flow (players/live, teams/live)
+## Live Snapshot Flow (all three /live endpoints)
+
+A single TTL cache holds a **full snapshot**: series JSON, players JSON, teams JSON (and derived IDs). All three endpoints use it; Atlas is only called when the snapshot is loaded or refreshed after TTL.
 
 ```
-GetLiveContext (TTL cache)
+GetLiveSeries() / GetLivePlayers() / GetLiveTeams()
     │
-    ├── cache hit ──▶ return LiveContext{TeamIDs, PlayerIDs}
-    │
-    └── cache miss ──▶ loadLiveContext:
-                          │
-                          ├── Atlas GetSeriesAll(lifecycle=live)
-                          │       └── extract roster IDs from participants
-                          │
-                          ├── Atlas GetRostersAll(id in rosterIDs)
-                          │       └── extract team IDs, player IDs
-                          │
-                          └── return LiveContext ──▶ cache
+    └── cache.Get()
+            │
+            ├── cache hit (now < until) ──▶ return snap.Series / snap.Players / snap.Teams  (0 Atlas calls)
+            │
+            └── cache miss ──▶ loadLiveSnapshot:
+                                  │
+                                  ├── Atlas GetSeriesAll(lifecycle=live)
+                                  │       └── extract roster IDs from participants
+                                  │
+                                  ├── Atlas GetRostersAll(id in rosterIDs)
+                                  │       └── extract team IDs, player IDs
+                                  │
+                                  ├── Atlas GetPlayersAll(id in playerIDs)
+                                  ├── Atlas GetTeamsAll(id in teamIDs)
+                                  │
+                                  └── cache LiveSnapshot{Series, Players, Teams} ──▶ return requested part
 ```
 
-## Inbound Rate Limit (per IP)
+## Inbound Rate Limit (per IP, fixed window)
 
 ```
-Request ──▶ getClientIP ──▶ bucket for IP
+Request ──▶ getClientIP ──▶ bucket {count, windowStart}
                                 │
-                                ├── tokens > 0? ──▶ consume 1, refill over time ──▶ Allow
+                                ├── now - windowStart >= per? ──yes──▶ new window (count=0, windowStart=now)
                                 │
-                                └── tokens = 0 ──▶ 429 + Retry-After
+                                ├── count++ ; count > limit? ──yes──▶ 429 + Retry-After
+                                │
+                                └── no ──▶ Allow
 ```
 
 ## Outbound Backoff (Atlas 429)
@@ -59,4 +69,3 @@ Get() ──▶ waitOutbound ──▶ backoff active? ──yes──▶ sleep 
               ▼                    ▼
          return body          propagate 429 to client
 ```
-
