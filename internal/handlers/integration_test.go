@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gin-gonic/gin"
 	"github.com/aaron/gamehub/internal/atlas"
 	"github.com/aaron/gamehub/internal/config"
 	"github.com/aaron/gamehub/internal/live"
@@ -56,10 +57,11 @@ func TestIntegration_LiveEndpoints(t *testing.T) {
 	liveSvc := live.NewService(client, config.LiveCacheTTL())
 	h := New(client, liveSvc)
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("GET /series/live", h.SeriesLive)
-	mux.HandleFunc("GET /players/live", h.PlayersLive)
-	mux.HandleFunc("GET /teams/live", h.TeamsLive)
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.GET("/series/live", h.SeriesLive)
+	router.GET("/players/live", h.PlayersLive)
+	router.GET("/teams/live", h.TeamsLive)
 
 	outDir := filepath.Join("integration")
 	if err := os.MkdirAll(outDir, 0755); err != nil {
@@ -80,7 +82,7 @@ func TestIntegration_LiveEndpoints(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, tt.path, nil)
 			rec := httptest.NewRecorder()
-			mux.ServeHTTP(rec, req)
+			router.ServeHTTP(rec, req)
 
 			if rec.Code != http.StatusOK {
 				t.Fatalf("status: want 200, got %d\nbody: %s", rec.Code, rec.Body.String())

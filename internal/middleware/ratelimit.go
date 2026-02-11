@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/aaron/gamehub/internal/config"
 	"github.com/aaron/gamehub/internal/metrics"
 )
@@ -93,20 +94,21 @@ func (l *Limiter) evictStaleLocked() {
 	}
 }
 
-// Middleware returns an HTTP middleware that rate limits by client IP.
-func (l *Limiter) Middleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ip := getClientIP(r)
+// Middleware returns a Gin middleware that rate limits by client IP.
+func (l *Limiter) Middleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		ip := getClientIP(c.Request)
 		if !l.Allow(ip) {
 			metrics.Inbound429.Add(1)
 			retrySec := config.InboundRetryAfterSec()
 			metrics.RecordInboundRetryAfter(retrySec)
-			w.Header().Set("Retry-After", fmt.Sprintf("%d", retrySec))
-			http.Error(w, "rate limited", http.StatusTooManyRequests)
+			c.Header("Retry-After", fmt.Sprintf("%d", retrySec))
+			c.JSON(http.StatusTooManyRequests, gin.H{"error": "rate limited"})
+			c.Abort()
 			return
 		}
-		next.ServeHTTP(w, r)
-	})
+		c.Next()
+	}
 }
 
 func getClientIP(r *http.Request) string {

@@ -7,6 +7,8 @@ import (
 	"os"
 	"testing"
 	"time"
+
+	"github.com/gin-gonic/gin"
 )
 
 func TestLimiter_Allow(t *testing.T) {
@@ -56,10 +58,12 @@ func TestLimiter_DifferentIPs(t *testing.T) {
 
 func TestMiddleware_Returns429(t *testing.T) {
 	limiter := NewLimiter(2, time.Second)
-	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
+	
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.GET("/", limiter.Middleware(), func(c *gin.Context) {
+		c.Status(http.StatusOK)
 	})
-	handler := limiter.Middleware(next)
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.RemoteAddr = "127.0.0.1:12345"
@@ -67,7 +71,7 @@ func TestMiddleware_Returns429(t *testing.T) {
 	// First two should succeed
 	for i := 0; i < 2; i++ {
 		rec := httptest.NewRecorder()
-		handler.ServeHTTP(rec, req)
+		router.ServeHTTP(rec, req)
 		if rec.Code != http.StatusOK {
 			t.Errorf("request %d: want 200, got %d", i+1, rec.Code)
 		}
@@ -75,7 +79,7 @@ func TestMiddleware_Returns429(t *testing.T) {
 
 	// Third should be 429
 	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
+	router.ServeHTTP(rec, req)
 	if rec.Code != http.StatusTooManyRequests {
 		t.Errorf("want 429, got %d", rec.Code)
 	}

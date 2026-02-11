@@ -2,11 +2,12 @@ package metrics
 
 import (
 	_ "embed"
-	"encoding/json"
 	"net/http"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/gin-gonic/gin"
 )
 
 //go:embed monitor.html
@@ -114,31 +115,13 @@ func Stats() map[string]interface{} {
 }
 
 // ServeJSON writes stats as JSON.
-func ServeJSON(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(Stats())
+func ServeJSON(c *gin.Context) {
+	c.JSON(http.StatusOK, Stats())
 }
 
 // ServeMonitor writes the monitoring HTML page.
-func ServeMonitor(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write(monitorHTML)
-}
-
-// responseRecorder captures status for metrics.
-type responseRecorder struct {
-	http.ResponseWriter
-	status int
-}
-
-func (r *responseRecorder) WriteHeader(code int) {
-	r.status = code
-	if code == http.StatusOK {
-		RequestsOK.Add(1)
-	}
-	r.ResponseWriter.WriteHeader(code)
+func ServeMonitor(c *gin.Context) {
+	c.Data(http.StatusOK, "text/html; charset=utf-8", monitorHTML)
 }
 
 // paths excluded from main traffic metrics (monitoring endpoints)
@@ -146,14 +129,17 @@ var excludedPaths = map[string]bool{"/stats": true, "/monitor": true}
 
 // Middleware wraps a handler to count total requests and OK responses.
 // /stats and /monitor are excluded so the main graph reflects only API traffic.
-func Middleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if excludedPaths[r.URL.Path] {
-			next.ServeHTTP(w, r)
+func Middleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if excludedPaths[c.Request.URL.Path] {
+			c.Next()
 			return
 		}
 		RequestsTotal.Add(1)
-		rec := &responseRecorder{ResponseWriter: w, status: 0}
-		next.ServeHTTP(rec, r)
-	})
+		c.Next()
+		// Check status after the handler runs
+		if c.Writer.Status() == http.StatusOK {
+			RequestsOK.Add(1)
+		}
+	}
 }

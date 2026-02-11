@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/aaron/gamehub/internal/atlas"
 	"github.com/aaron/gamehub/internal/config"
 	"github.com/aaron/gamehub/internal/handlers"
@@ -27,26 +28,35 @@ func main() {
 	liveSvc := live.NewService(client, config.LiveCacheTTL())
 	h := handlers.New(client, liveSvc)
 
-	apiMux := http.NewServeMux()
-	apiMux.HandleFunc("GET /series/live", h.SeriesLive)
-	apiMux.HandleFunc("GET /players/live", h.PlayersLive)
-	apiMux.HandleFunc("GET /teams/live", h.TeamsLive)
-
+	// Set Gin to release mode for production
+	gin.SetMode(gin.ReleaseMode)
+	
+	router := gin.New()
+	
+	// Apply metrics middleware globally
+	router.Use(metrics.Middleware())
+	
+	// Health and monitoring endpoints (no rate limiting)
+	router.GET("/health", handlers.Health)
+	router.GET("/monitor", metrics.ServeMonitor)
+	router.GET("/stats", metrics.ServeJSON)
+	
+	// API endpoints with rate limiting
 	limiter := middleware.NewLimiter(config.InboundRateLimitRequests(), config.InboundRateLimitPer())
-	mainMux := http.NewServeMux()
-	mainMux.HandleFunc("GET /health", handlers.Health)
-	mainMux.HandleFunc("GET /monitor", metrics.ServeMonitor)
-	mainMux.HandleFunc("GET /stats", metrics.ServeJSON)
-	mainMux.Handle("/", limiter.Middleware(apiMux))
-
-	handler := metrics.Middleware(mainMux)
+	api := router.Group("/")
+	api.Use(limiter.Middleware())
+	{
+		api.GET("/series/live", h.SeriesLive)
+		api.GET("/players/live", h.PlayersLive)
+		api.GET("/teams/live", h.TeamsLive)
+	}
 
 	addr := ":8080"
 	if port := os.Getenv("PORT"); port != "" {
 		addr = ":" + port
 	}
 
-	srv := &http.Server{Addr: addr, Handler: handler}
+	srv := &http.Server{Addr: addr, Handler: router}
 	
 	// Determine the host for the monitor URL
 	host := "localhost"

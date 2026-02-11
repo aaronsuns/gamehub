@@ -2,9 +2,9 @@ package handlers
 
 import (
 	"fmt"
-	"log"
 	"net/http"
 
+	"github.com/gin-gonic/gin"
 	"github.com/aaron/gamehub/internal/atlas"
 	"github.com/aaron/gamehub/internal/live"
 )
@@ -21,76 +21,66 @@ func New(atlasClient *atlas.Client, liveService *live.Service) *Handler {
 }
 
 // Health returns 200 OK for liveness/readiness probes.
-func Health(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write([]byte(`{"status":"ok"}`))
+func Health(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"status": "ok"})
 }
 
 // SeriesLive returns currently live/ongoing series.
-func (h *Handler) SeriesLive(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) SeriesLive(c *gin.Context) {
 	params := map[string]string{"filter": "lifecycle=live"}
-	body, _, err := h.Atlas.GetSeriesAll(r.Context(), params)
+	body, _, err := h.Atlas.GetSeriesAll(c.Request.Context(), params)
 	if err != nil {
-		writeError(w, err)
+		writeError(c, err)
 		return
 	}
-	writeJSON(w, body)
+	c.Data(http.StatusOK, "application/json", body)
 }
 
 // PlayersLive returns players currently playing in live series.
-func (h *Handler) PlayersLive(w http.ResponseWriter, r *http.Request) {
-	liveCtx, err := h.Live.GetLiveContext(r.Context())
+func (h *Handler) PlayersLive(c *gin.Context) {
+	liveCtx, err := h.Live.GetLiveContext(c.Request.Context())
 	if err != nil {
-		writeError(w, err)
+		writeError(c, err)
 		return
 	}
 	if len(liveCtx.PlayerIDs) == 0 {
-		writeJSON(w, []byte("[]"))
+		c.Data(http.StatusOK, "application/json", []byte("[]"))
 		return
 	}
 	params := map[string]string{"filter": atlas.FilterIDIn(liveCtx.PlayerIDs)}
-	body, _, err := h.Atlas.GetPlayersAll(r.Context(), params)
+	body, _, err := h.Atlas.GetPlayersAll(c.Request.Context(), params)
 	if err != nil {
-		writeError(w, err)
+		writeError(c, err)
 		return
 	}
-	writeJSON(w, body)
+	c.Data(http.StatusOK, "application/json", body)
 }
 
 // TeamsLive returns teams currently playing in live series.
-func (h *Handler) TeamsLive(w http.ResponseWriter, r *http.Request) {
-	liveCtx, err := h.Live.GetLiveContext(r.Context())
+func (h *Handler) TeamsLive(c *gin.Context) {
+	liveCtx, err := h.Live.GetLiveContext(c.Request.Context())
 	if err != nil {
-		writeError(w, err)
+		writeError(c, err)
 		return
 	}
 	if len(liveCtx.TeamIDs) == 0 {
-		writeJSON(w, []byte("[]"))
+		c.Data(http.StatusOK, "application/json", []byte("[]"))
 		return
 	}
 	params := map[string]string{"filter": atlas.FilterIDIn(liveCtx.TeamIDs)}
-	body, _, err := h.Atlas.GetTeamsAll(r.Context(), params)
+	body, _, err := h.Atlas.GetTeamsAll(c.Request.Context(), params)
 	if err != nil {
-		writeError(w, err)
+		writeError(c, err)
 		return
 	}
-	writeJSON(w, body)
+	c.Data(http.StatusOK, "application/json", body)
 }
 
-func writeJSON(w http.ResponseWriter, body []byte) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	if _, err := w.Write(body); err != nil {
-		log.Printf("write response: %v", err)
-	}
-}
-
-func writeError(w http.ResponseWriter, err error) {
+func writeError(c *gin.Context, err error) {
 	if rlErr, ok := err.(*atlas.ErrRateLimited); ok {
-		w.Header().Set("Retry-After", fmt.Sprintf("%d", rlErr.RetryAfterMs))
-		http.Error(w, "rate limited", http.StatusTooManyRequests)
+		c.Header("Retry-After", fmt.Sprintf("%d", rlErr.RetryAfterMs))
+		c.JSON(http.StatusTooManyRequests, gin.H{"error": "rate limited"})
 		return
 	}
-	http.Error(w, err.Error(), http.StatusInternalServerError)
+	c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 }
