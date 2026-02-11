@@ -1,4 +1,4 @@
-.PHONY: run run-stress test integration-test loadtest stress stress-demo stress-demo-docker stop kill-8080 build lint docker-build docker-build-run docker-run docker-test test-endpoints
+.PHONY: run run-stress test integration-test loadtest stress stress-demo stress-demo-docker stop kill-8080 build lint quality docker-build docker-build-run docker-run docker-test test-endpoints
 
 # ============================================================================
 # CONFIGURATION - Adjust these values for demo/testing
@@ -73,6 +73,9 @@ test:
 # Lint (runs in container, same as CI)
 lint:
 	docker run --rm -v "$$(pwd):/app" -w /app golangci/golangci-lint:latest golangci-lint run
+
+# Quality checks: run both lint and test
+quality: lint test
 
 # Integration test (requires ATLAS_API_KEY; skips if unset)
 integration-test:

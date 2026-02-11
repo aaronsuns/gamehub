@@ -29,7 +29,6 @@ type stats struct {
 	ok          int64
 	rateLimited int64
 	errors      int64
-	totalTime   time.Duration
 }
 
 func main() {
@@ -161,7 +160,12 @@ func runStressTest(cfg *config) *stats {
 							atomic.LoadInt64(&stats.ok)+atomic.LoadInt64(&stats.rateLimited)+atomic.LoadInt64(&stats.errors),
 							resp.Status, resp.StatusCode, reqDuration)
 					}
-					resp.Body.Close()
+					if err := resp.Body.Close(); err != nil {
+						// Log but don't fail on body close errors
+						if cfg.verbose {
+							fmt.Printf("Error closing response body: %v\n", err)
+						}
+					}
 				}
 
 				requestCount++
