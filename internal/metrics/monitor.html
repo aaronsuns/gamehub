@@ -55,6 +55,10 @@
         <td>Atlas Retry-After (ms)</td>
         <td id="atlasRetryAfter">0</td>
       </tr>
+      <tr>
+        <td>Live snapshot loads (cache refresh)</td>
+        <td id="liveSnapshotLoads">0</td>
+      </tr>
     </tbody>
   </table>
   <h2>Configuration</h2>
@@ -133,7 +137,8 @@
           { label: 'inbound req/s', data: [], borderColor: '#4CAF50', fill: false },
           { label: '200 ok/s', data: [], borderColor: '#2196F3', fill: false },
           { label: 'our 429/s', data: [], borderColor: '#FF9800', fill: false },
-          { label: 'Atlas 429/s', data: [], borderColor: '#f44336', fill: false }
+          { label: 'Atlas 429/s', data: [], borderColor: '#f44336', fill: false },
+          { label: 'live snapshot loads/s', data: [], borderColor: '#607D8B', borderDash: [3,3], fill: false }
         ]
       },
       options: {
@@ -180,6 +185,7 @@
           document.getElementById('atlas429').textContent = d.total.atlas_429;
           document.getElementById('inboundRetryAfter').textContent = d.total.inbound_retry_after_s || 0;
           document.getElementById('atlasRetryAfter').textContent = d.total.atlas_retry_after_ms || 0;
+          document.getElementById('liveSnapshotLoads').textContent = d.total.live_snapshot_loads ?? 0;
 
           // Update configuration values
           if (d.config) {
@@ -202,6 +208,7 @@
           chart.data.datasets[1].data = h.map(s => s.ok);
           chart.data.datasets[2].data = h.map(s => s.inbound_429);
           chart.data.datasets[3].data = h.map(s => s.atlas_429);
+          chart.data.datasets[4].data = h.map(s => s.live_loads ?? 0);
           chart.update('none');
 
           retryChart.data.labels = labels;

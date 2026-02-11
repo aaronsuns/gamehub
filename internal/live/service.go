@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/aaron/gamehub/internal/atlas"
+	"github.com/aaron/gamehub/internal/metrics"
 )
 
 // Service derives live teams and players from live series.
@@ -17,36 +18,80 @@ type Service struct {
 // NewService creates a live service with a TTL cache.
 func NewService(client *atlas.Client, ttl time.Duration) *Service {
 	s := &Service{client: client}
-	s.cache = NewCache(ttl, func() (LiveContext, error) {
-		return s.loadLiveContext(context.Background())
+	s.cache = NewCache(ttl, func() (LiveSnapshot, error) {
+		return s.loadLiveSnapshot(context.Background())
 	})
 	return s
 }
 
-// loadLiveContext performs the full API flow: series -> roster IDs -> rosters -> team/player IDs.
-func (s *Service) loadLiveContext(ctx context.Context) (LiveContext, error) {
+// loadLiveSnapshot fetches series, rosters, players, and teams for "live" and returns a full snapshot.
+// Caching this allows /series/live, /players/live, /teams/live to serve from cache and reduce Atlas calls.
+func (s *Service) loadLiveSnapshot(ctx context.Context) (LiveSnapshot, error) {
+	metrics.RecordLiveSnapshotLoad()
 	seriesBody, _, err := s.client.GetSeriesAll(ctx, map[string]string{"filter": "lifecycle=live"})
 	if err != nil {
-		return LiveContext{}, err
+		return LiveSnapshot{}, err
 	}
 	rosterIDs := extractRosterIDsFromSeries(seriesBody)
 	if len(rosterIDs) == 0 {
-		return LiveContext{TeamIDs: []int{}, PlayerIDs: []int{}}, nil
+		return LiveSnapshot{
+			Context: LiveContext{TeamIDs: []int{}, PlayerIDs: []int{}},
+			Series:  seriesBody,
+			Players: []byte("[]"),
+			Teams:   []byte("[]"),
+		}, nil
 	}
-	// Server-side filter: Atlas API returns only these rosters (Multiple Rosters by id).
 	rostersBody, _, err := s.client.GetRostersAll(ctx, map[string]string{
 		"filter": atlas.FilterIDIn(rosterIDs),
 	})
 	if err != nil {
-		return LiveContext{}, err
+		return LiveSnapshot{}, err
 	}
 	teamIDs, playerIDs := extractTeamAndPlayerIDsFromRosters(rostersBody)
-	return LiveContext{TeamIDs: teamIDs, PlayerIDs: playerIDs}, nil
+	snap := LiveSnapshot{Context: LiveContext{TeamIDs: teamIDs, PlayerIDs: playerIDs}, Series: seriesBody}
+	if len(playerIDs) == 0 {
+		snap.Players = []byte("[]")
+	} else {
+		playersBody, _, err := s.client.GetPlayersAll(ctx, map[string]string{"filter": atlas.FilterIDIn(playerIDs)})
+		if err != nil {
+			return LiveSnapshot{}, err
+		}
+		snap.Players = playersBody
+	}
+	if len(teamIDs) == 0 {
+		snap.Teams = []byte("[]")
+	} else {
+		teamsBody, _, err := s.client.GetTeamsAll(ctx, map[string]string{"filter": atlas.FilterIDIn(teamIDs)})
+		if err != nil {
+			return LiveSnapshot{}, err
+		}
+		snap.Teams = teamsBody
+	}
+	return snap, nil
 }
 
-// GetLiveContext returns the cached or freshly loaded live context.
+// GetLiveContext returns the cached or freshly loaded live context (IDs only).
 func (s *Service) GetLiveContext(ctx context.Context) (LiveContext, error) {
-	return s.cache.Get()
+	snap, err := s.cache.Get()
+	return snap.Context, err
+}
+
+// GetLiveSeries returns the cached or freshly loaded live series JSON.
+func (s *Service) GetLiveSeries(ctx context.Context) ([]byte, error) {
+	snap, err := s.cache.Get()
+	return snap.Series, err
+}
+
+// GetLivePlayers returns the cached or freshly loaded live players JSON.
+func (s *Service) GetLivePlayers(ctx context.Context) ([]byte, error) {
+	snap, err := s.cache.Get()
+	return snap.Players, err
+}
+
+// GetLiveTeams returns the cached or freshly loaded live teams JSON.
+func (s *Service) GetLiveTeams(ctx context.Context) ([]byte, error) {
+	snap, err := s.cache.Get()
+	return snap.Teams, err
 }
 
 func extractRosterIDsFromSeries(data []byte) []int {

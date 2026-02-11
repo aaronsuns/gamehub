@@ -25,10 +25,9 @@ func Health(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "ok"})
 }
 
-// SeriesLive returns currently live/ongoing series.
+// SeriesLive returns currently live/ongoing series (from cache when valid).
 func (h *Handler) SeriesLive(c *gin.Context) {
-	params := map[string]string{"filter": "lifecycle=live"}
-	body, _, err := h.Atlas.GetSeriesAll(c.Request.Context(), params)
+	body, err := h.Live.GetLiveSeries(c.Request.Context())
 	if err != nil {
 		writeError(c, err)
 		return
@@ -36,19 +35,9 @@ func (h *Handler) SeriesLive(c *gin.Context) {
 	c.Data(http.StatusOK, "application/json", body)
 }
 
-// PlayersLive returns players currently playing in live series.
+// PlayersLive returns players currently playing in live series (from cache when valid).
 func (h *Handler) PlayersLive(c *gin.Context) {
-	liveCtx, err := h.Live.GetLiveContext(c.Request.Context())
-	if err != nil {
-		writeError(c, err)
-		return
-	}
-	if len(liveCtx.PlayerIDs) == 0 {
-		c.Data(http.StatusOK, "application/json", []byte("[]"))
-		return
-	}
-	params := map[string]string{"filter": atlas.FilterIDIn(liveCtx.PlayerIDs)}
-	body, _, err := h.Atlas.GetPlayersAll(c.Request.Context(), params)
+	body, err := h.Live.GetLivePlayers(c.Request.Context())
 	if err != nil {
 		writeError(c, err)
 		return
@@ -56,19 +45,9 @@ func (h *Handler) PlayersLive(c *gin.Context) {
 	c.Data(http.StatusOK, "application/json", body)
 }
 
-// TeamsLive returns teams currently playing in live series.
+// TeamsLive returns teams currently playing in live series (from cache when valid).
 func (h *Handler) TeamsLive(c *gin.Context) {
-	liveCtx, err := h.Live.GetLiveContext(c.Request.Context())
-	if err != nil {
-		writeError(c, err)
-		return
-	}
-	if len(liveCtx.TeamIDs) == 0 {
-		c.Data(http.StatusOK, "application/json", []byte("[]"))
-		return
-	}
-	params := map[string]string{"filter": atlas.FilterIDIn(liveCtx.TeamIDs)}
-	body, _, err := h.Atlas.GetTeamsAll(c.Request.Context(), params)
+	body, err := h.Live.GetLiveTeams(c.Request.Context())
 	if err != nil {
 		writeError(c, err)
 		return

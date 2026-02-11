@@ -21,6 +21,7 @@ var (
 	Atlas429              atomic.Uint64
 	LastInboundRetryAfter atomic.Uint64 // seconds we sent on our 429
 	LastAtlasRetryAfter   atomic.Uint64 // ms Atlas told us to wait
+	LiveSnapshotLoads     atomic.Uint64 // number of times live cache was refreshed (loadLiveSnapshot called)
 )
 
 // RecordInboundRetryAfter records the Retry-After we sent (seconds).
@@ -33,6 +34,11 @@ func RecordAtlasRetryAfter(ms int) {
 	LastAtlasRetryAfter.Store(uint64(ms))
 }
 
+// RecordLiveSnapshotLoad records that the live cache was refreshed (TTL expired or first load).
+func RecordLiveSnapshotLoad() {
+	LiveSnapshotLoads.Add(1)
+}
+
 const historySize = 120 // 2 min at 1 sample/sec
 
 type sample struct {
@@ -43,16 +49,18 @@ type sample struct {
 	Atlas429           uint64 `json:"atlas_429"`
 	AtlasRetryAfterMs  uint64 `json:"atlas_retry_after_ms"`
 	InboundRetryAfterS uint64 `json:"inbound_retry_after_s"`
+	LiveLoads          uint64 `json:"live_loads"` // live snapshot loads in this second
 }
 
 var (
-	history     [historySize]sample
-	historyIdx  int
-	historyMu   sync.Mutex
-	lastTotal   uint64
-	lastOK      uint64
-	lastInbound uint64
-	lastAtlas   uint64
+	history              [historySize]sample
+	historyIdx           int
+	historyMu            sync.Mutex
+	lastTotal            uint64
+	lastOK               uint64
+	lastInbound          uint64
+	lastAtlas            uint64
+	lastLiveSnapshotLoads uint64
 )
 
 func init() {
@@ -70,6 +78,7 @@ func recordSample() {
 	ok := RequestsOK.Load()
 	inbound := Inbound429.Load()
 	atlas := Atlas429.Load()
+	liveLoads := LiveSnapshotLoads.Load()
 
 	historyMu.Lock()
 	defer historyMu.Unlock()
@@ -82,9 +91,10 @@ func recordSample() {
 		Atlas429:           atlas - lastAtlas,
 		AtlasRetryAfterMs:  LastAtlasRetryAfter.Load(),
 		InboundRetryAfterS: LastInboundRetryAfter.Load(),
+		LiveLoads:          liveLoads - lastLiveSnapshotLoads,
 	}
 	historyIdx = (historyIdx + 1) % historySize
-	lastTotal, lastOK, lastInbound, lastAtlas = total, ok, inbound, atlas
+	lastTotal, lastOK, lastInbound, lastAtlas, lastLiveSnapshotLoads = total, ok, inbound, atlas, liveLoads
 }
 
 // Stats returns current counters and recent history for graphing.
@@ -104,12 +114,13 @@ func Stats() map[string]interface{} {
 
 	return map[string]interface{}{
 		"total": map[string]interface{}{
-			"requests":              RequestsTotal.Load(),
-			"ok":                    RequestsOK.Load(),
-			"inbound_429":           Inbound429.Load(),
-			"atlas_429":             Atlas429.Load(),
-			"inbound_retry_after_s": LastInboundRetryAfter.Load(),
-			"atlas_retry_after_ms":  LastAtlasRetryAfter.Load(),
+			"requests":               RequestsTotal.Load(),
+			"ok":                     RequestsOK.Load(),
+			"inbound_429":            Inbound429.Load(),
+			"atlas_429":              Atlas429.Load(),
+			"inbound_retry_after_s":  LastInboundRetryAfter.Load(),
+			"atlas_retry_after_ms":   LastAtlasRetryAfter.Load(),
+			"live_snapshot_loads":    LiveSnapshotLoads.Load(),
 		},
 		"history": samples,
 		"config":  getConfig(),

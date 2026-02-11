@@ -10,7 +10,7 @@ GAMEHUB_DEBUG           ?=         # Enable debug logging (set to "1" to enable,
 
 # Rate Limiting Configuration
 # Controls how many requests per IP address are allowed within a time window
-GAMEHUB_INBOUND_RATE_LIMIT          ?= 120    # Max requests per IP per window (default: 120 requests/minute)
+GAMEHUB_INBOUND_RATE_LIMIT          ?= 2000    # Max requests per IP per window (default: 120 requests/minute)
 GAMEHUB_INBOUND_RATE_LIMIT_PER      ?= 1m     # Rate limit window duration (default: 1 minute)
 GAMEHUB_INBOUND_RETRY_AFTER         ?= 60     # Retry-After header value (in seconds) sent with 429 responses (default: 60)
 GAMEHUB_INBOUND_BUCKET_MAX_STALE    ?= 5m    # How long a rate limit bucket can be unused before eviction (default: 5 minutes)
@@ -18,7 +18,7 @@ GAMEHUB_INBOUND_BUCKET_EVICT_THRESHOLD ?= 100 # Threshold that triggers eviction
 
 # Caching Configuration
 # Controls how long live context (teams/players in live series) is cached
-GAMEHUB_LIVE_CACHE_TTL  ?= 10s     # Live context cache TTL (default: 10 seconds, reduces Atlas API calls)
+GAMEHUB_LIVE_CACHE_TTL  ?= 5s     # Live context cache TTL (default: 10 seconds, reduces Atlas API calls)
 
 # Atlas API Configuration
 # Controls how the server interacts with the upstream Atlas API
@@ -32,7 +32,7 @@ STRESS_URL         ?= http://localhost:8080    # Base URL to test (default: http
 STRESS_PATH        ?= /players/live            # API endpoint path to stress test (default: /players/live)
 STRESS_DURATION    ?= 5m                      # Duration to run continuously (e.g., 5m, 10m). Set to "0" to use request count mode instead
 STRESS_N           ?= 0                       # Total requests to send (only used if STRESS_DURATION=0, default: 0 = use duration mode)
-STRESS_CONCURRENCY ?= 4                       # Number of concurrent worker goroutines (default: 4 workers)
+STRESS_CONCURRENCY ?= 16                       # Number of concurrent worker goroutines (default: 4 workers)
 STRESS_DELAY       ?= 500ms                   # Delay between requests from each worker (default: 500ms = ~2 req/s per worker)
                                                 # Rate calculation: 4 workers * 2 req/s = ~8 req/s = ~480 req/min (~4x the 120/min limit, hits limit after ~15s)
 STRESS_TIMEOUT     ?= 30s                     # HTTP client timeout for stress test requests (default: 30 seconds)
