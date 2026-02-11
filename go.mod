@@ -1,3 +1,3 @@
 module github.com/aaron/gamehub
 
-go 1.25.5
+go 1.24
