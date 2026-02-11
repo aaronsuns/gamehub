@@ -38,7 +38,7 @@ func PageSize() int {
 
 // InboundRateLimitRequests returns requests per IP per window. Env: GAMEHUB_INBOUND_RATE_LIMIT.
 func InboundRateLimitRequests() int {
-	return envInt("GAMEHUB_INBOUND_RATE_LIMIT", 60)
+	return envInt("GAMEHUB_INBOUND_RATE_LIMIT", 120)
 }
 
 // InboundRateLimitPer returns the rate limit window. Env: GAMEHUB_INBOUND_RATE_LIMIT_PER.

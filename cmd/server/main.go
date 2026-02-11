@@ -47,11 +47,25 @@ func main() {
 	}
 
 	srv := &http.Server{Addr: addr, Handler: handler}
+	
+	// Determine the host for the monitor URL
+	host := "localhost"
+	if port := os.Getenv("PORT"); port != "" {
+		host = host + ":" + port
+	} else {
+		host = host + ":8080"
+	}
+	
 	go func() {
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatal(err)
 		}
 	}()
+
+	// Brief delay to ensure server starts listening before showing message
+	time.Sleep(100 * time.Millisecond)
+	log.Printf("Server started on %s", addr)
+	log.Printf("Monitor dashboard: http://%s/monitor", host)
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)

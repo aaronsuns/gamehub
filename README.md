@@ -2,6 +2,8 @@
 
 HTTP server in Go that wraps the Atlas esports data API, exposing live series, players, and teams.
 
+> **📋 Demo Guide**: See [DEMO.md](DEMO.md) for quick start instructions and interview talking points.
+
 ## Endpoints
 
 - `GET /health` — Health check for liveness/readiness probes (no rate limit)
@@ -110,8 +112,33 @@ Set `GAMEHUB_DEBUG=1` to enable debug output (e.g. pagination requests).
 
 | Variable | Default | Description |
 |----------|---------|-------------|
+| `ATLAS_API_KEY` | (required) | Atlas API secret key |
+| `PORT` | 8080 | Server port |
 | `GAMEHUB_INBOUND_RATE_LIMIT` | 60 | Max requests per IP per window |
 | `GAMEHUB_INBOUND_RATE_LIMIT_PER` | 1m | Rate limit window |
 | `GAMEHUB_LIVE_CACHE_TTL` | 10s | Live context cache TTL |
 | `GAMEHUB_ATLAS_OUTBOUND_MIN_BACKOFF` | 1s | Min backoff on 429 when Retry-After is missing |
 | `GAMEHUB_PAGE_SIZE` | 50 | Atlas pagination page size |
+| `GAMEHUB_DEBUG` | (unset) | Enable debug logging |
+
+## Quick Reference
+
+**Start server:**
+```bash
+export ATLAS_API_KEY="b9bbe07011a94587b1bdfc40cb4b2cf1"
+make run
+```
+
+**Test endpoints:**
+```bash
+curl http://localhost:8080/health
+curl http://localhost:8080/series/live
+curl http://localhost:8080/players/live
+curl http://localhost:8080/teams/live
+```
+
+**View metrics:**
+- Dashboard: http://localhost:8080/monitor
+- JSON API: http://localhost:8080/stats
+
+**Architecture diagram reference:** See [docs/ARCHITECTURE_FIGMA.md](docs/ARCHITECTURE_FIGMA.md) for Figma diagram structure.
