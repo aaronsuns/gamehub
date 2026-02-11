@@ -1,4 +1,4 @@
-.PHONY: run run-stress test integration-test loadtest stress stress-demo stress-demo-docker stop kill-8080 build lint docker-build docker-run docker-test test-endpoints
+.PHONY: run run-stress test integration-test loadtest stress stress-demo stress-demo-docker stop kill-8080 build lint docker-build docker-build-run docker-run docker-test test-endpoints
 
 # ============================================================================
 # CONFIGURATION - Adjust these values for demo/testing
@@ -165,8 +165,11 @@ stress-demo-docker: docker-build
 docker-build:
 	docker build -t gamehub .
 
-# Run Docker container
-docker-run: docker-build
+# Build and run Docker container
+docker-build-run: docker-build docker-run
+
+# Run Docker container (uses cached image, does not rebuild)
+docker-run:
 	@PORT_VAL=$$(echo $(PORT) | tr -d '[:space:]'); \
 	docker run \
 		-e ATLAS_API_KEY="$${ATLAS_API_KEY}" \
