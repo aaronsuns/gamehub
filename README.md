@@ -2,8 +2,6 @@
 
 HTTP server in Go that wraps the Atlas esports data API, exposing live series, players, and teams.
 
-> **📋 Demo Guide**: See [DEMO.md](DEMO.md) for quick start instructions and interview talking points.
-
 ## Endpoints
 
 - `GET /health` — Health check for liveness/readiness probes (no rate limit)
@@ -140,5 +138,3 @@ curl http://localhost:8080/teams/live
 **View metrics:**
 - Dashboard: http://localhost:8080/monitor
 - JSON API: http://localhost:8080/stats
-
-**Architecture diagram reference:** See [docs/ARCHITECTURE_FIGMA.md](docs/ARCHITECTURE_FIGMA.md) for Figma diagram structure.
