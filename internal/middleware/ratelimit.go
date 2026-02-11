@@ -13,7 +13,8 @@ import (
 	"github.com/aaron/gamehub/internal/metrics"
 )
 
-// Limiter implements a static per-IP rate limit using a token bucket.
+// Limiter implements a per-IP rate limit using a fixed window: at most
+// requests in any contiguous period of length per.
 type Limiter struct {
 	requests int
 	per      time.Duration
@@ -22,12 +23,12 @@ type Limiter struct {
 }
 
 type bucket struct {
-	tokens   int
-	lastFill time.Time
+	count      int
+	windowStart time.Time
 }
 
-// NewLimiter creates a rate limiter allowing requests per IP per window.
-// Example: NewLimiter(60, time.Minute) = 60 req/min per IP.
+// NewLimiter creates a rate limiter allowing at most requests per IP per window.
+// Example: NewLimiter(120, time.Minute) = at most 120 requests in any 1-minute window per IP.
 func NewLimiter(requests int, per time.Duration) *Limiter {
 	return &Limiter{
 		requests: requests,
@@ -47,32 +48,24 @@ func (l *Limiter) Allow(ip string) bool {
 		l.evictStaleLocked()
 	}
 
+	now := time.Now()
 	b, ok := l.buckets[ip]
 	if !ok {
-		l.buckets[ip] = &bucket{tokens: l.requests - 1, lastFill: time.Now()}
+		l.buckets[ip] = &bucket{count: 1, windowStart: now}
 		return true
 	}
 
-	// Refill tokens based on elapsed time
-	// Interval per token = l.per / l.requests
-	elapsed := time.Since(b.lastFill)
-	interval := l.per.Nanoseconds() / int64(l.requests)
-	if interval <= 0 {
-		interval = 1
-	}
-	refill := int(elapsed.Nanoseconds() / interval)
-	if refill > 0 {
-		b.tokens += refill
-		if b.tokens > l.requests {
-			b.tokens = l.requests
-		}
-		b.lastFill = time.Now()
+	// If we're past the current window, start a new one.
+	if now.Sub(b.windowStart) >= l.per {
+		b.count = 0
+		b.windowStart = now
 	}
 
-	if b.tokens <= 0 {
+	b.count++
+	if b.count > l.requests {
+		b.count-- // don't count this request
 		return false
 	}
-	b.tokens--
 	return true
 }
 
@@ -84,11 +77,11 @@ func (l *Limiter) bucketCount() int {
 	return n
 }
 
-// evictStaleLocked removes buckets unused for InboundBucketMaxStale.
+// evictStaleLocked removes buckets whose window start is older than InboundBucketMaxStale.
 func (l *Limiter) evictStaleLocked() {
 	cutoff := time.Now().Add(-config.InboundBucketMaxStale())
 	for ip, b := range l.buckets {
-		if b.lastFill.Before(cutoff) {
+		if b.windowStart.Before(cutoff) {
 			delete(l.buckets, ip)
 		}
 	}

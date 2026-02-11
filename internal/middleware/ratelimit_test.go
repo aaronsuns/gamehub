@@ -88,6 +88,29 @@ func TestMiddleware_Returns429(t *testing.T) {
 	}
 }
 
+// TestLimiter_FixedWindow verifies that we allow at most N requests per window,
+// not N + refill (e.g. 3/sec means exactly 3 in that second, not 3 + refill over time).
+func TestLimiter_FixedWindow(t *testing.T) {
+	limiter := NewLimiter(3, time.Second)
+	ip := "10.0.0.1"
+
+	// First 3 requests in the same window: allowed
+	for i := 0; i < 3; i++ {
+		if !limiter.Allow(ip) {
+			t.Fatalf("request %d: expected allowed", i+1)
+		}
+	}
+	// 4th request in same window: denied
+	if limiter.Allow(ip) {
+		t.Error("4th request in same window should be denied")
+	}
+	// After window expires, next request starts new window
+	time.Sleep(time.Second + time.Millisecond)
+	if !limiter.Allow(ip) {
+		t.Error("first request in new window should be allowed")
+	}
+}
+
 func TestLimiter_EvictStale(t *testing.T) {
 	origThreshold := os.Getenv("GAMEHUB_INBOUND_BUCKET_EVICT_THRESHOLD")
 	origMaxStale := os.Getenv("GAMEHUB_INBOUND_BUCKET_MAX_STALE")
