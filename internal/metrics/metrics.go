@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/aaron/gamehub/internal/config"
 )
 
 //go:embed monitor.html
@@ -111,6 +112,34 @@ func Stats() map[string]interface{} {
 			"atlas_retry_after_ms":  LastAtlasRetryAfter.Load(),
 		},
 		"history": samples,
+		"config":  getConfig(),
+	}
+}
+
+// getConfig returns important configuration values affecting rate limiting and traffic load.
+func getConfig() map[string]interface{} {
+	inboundLimit := config.InboundRateLimitRequests()
+	inboundWindow := config.InboundRateLimitPer()
+	inboundRetryAfter := config.InboundRetryAfterSec()
+	bucketMaxStale := config.InboundBucketMaxStale()
+	bucketEvictThreshold := config.InboundBucketEvictThreshold()
+	cacheTTL := config.LiveCacheTTL()
+	pageSize := config.PageSize()
+	minBackoff := config.AtlasOutboundMinBackoff()
+	stressConcurrency := config.StressConcurrency()
+	stressDelay := config.StressDelay()
+
+	return map[string]interface{}{
+		"inbound_rate_limit":        inboundLimit,
+		"inbound_rate_window":       inboundWindow.String(),
+		"inbound_retry_after":       inboundRetryAfter,
+		"inbound_bucket_max_stale":  bucketMaxStale.String(),
+		"inbound_bucket_evict_threshold": bucketEvictThreshold,
+		"live_cache_ttl":            cacheTTL.String(),
+		"atlas_page_size":           pageSize,
+		"atlas_min_backoff":         minBackoff.String(),
+		"stress_concurrency":        stressConcurrency,
+		"stress_delay":              stressDelay.String(),
 	}
 }
 

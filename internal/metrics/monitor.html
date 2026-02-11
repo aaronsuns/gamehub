@@ -5,15 +5,18 @@
   <title>GameHub Monitor</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
-    body { font-family: system-ui, sans-serif; margin: 0.75rem; }
-    h1 { margin-bottom: 0.25rem; font-size: 1.5rem; }
-    h2 { margin-top: 1rem; margin-bottom: 0.25rem; font-size: 1.1rem; }
-    table.metrics { border-collapse: collapse; margin-bottom: 1rem; width: 100%; max-width: 700px; font-size: 0.65rem; }
-    table.metrics th, table.metrics td { padding: 0.3rem 0.45rem; text-align: left; border-bottom: 1px solid #e0e0e0; }
-    table.metrics th { background-color: #f5f5f5; font-weight: 600; font-size: 0.65rem; }
+    body { font-family: system-ui, sans-serif; margin: 0.5rem; }
+    h1 { margin-bottom: 0.2rem; font-size: 1.3rem; }
+    h2 { margin-top: 0.6rem; margin-bottom: 0.2rem; font-size: 0.95rem; }
+    .config-container { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 0.5rem; }
+    table.metrics { border-collapse: collapse; margin-bottom: 0.5rem; width: 100%; max-width: 100%; font-size: 0.6rem; }
+    table.metrics th, table.metrics td { padding: 0.25rem 0.35rem; text-align: left; border-bottom: 1px solid #e0e0e0; }
+    table.metrics th { background-color: #f5f5f5; font-weight: 600; font-size: 0.6rem; }
     table.metrics td { font-weight: bold; }
     table.metrics tr:hover { background-color: #fafafa; }
-    .chart { max-width: 900px; height: 250px; margin-bottom: 1rem; }
+    .chart { max-width: 900px; height: 200px; margin-bottom: 0.5rem; }
+    p { margin: 0.2rem 0 0.4rem 0; font-size: 0.75rem; }
+    button { margin-bottom: 0.5rem; padding: 0.3rem 0.6rem; font-size: 0.75rem; }
   </style>
 </head>
 <body>
@@ -54,6 +57,69 @@
       </tr>
     </tbody>
   </table>
+  <h2>Configuration</h2>
+  <div class="config-container">
+    <table class="metrics">
+      <thead>
+        <tr>
+          <th>Inbound Rate Limiting</th>
+          <th>Value</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Rate Limit (per IP)</td>
+          <td id="configInboundLimit">-</td>
+        </tr>
+        <tr>
+          <td>Rate Window</td>
+          <td id="configInboundWindow">-</td>
+        </tr>
+        <tr>
+          <td>Retry-After (s)</td>
+          <td id="configInboundRetryAfter">-</td>
+        </tr>
+        <tr>
+          <td>Bucket Max Stale</td>
+          <td id="configBucketMaxStale">-</td>
+        </tr>
+        <tr>
+          <td>Bucket Evict Threshold</td>
+          <td id="configBucketEvictThreshold">-</td>
+        </tr>
+      </tbody>
+    </table>
+    <table class="metrics">
+      <thead>
+        <tr>
+          <th>Other Settings</th>
+          <th>Value</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Live Cache TTL</td>
+          <td id="configCacheTTL">-</td>
+        </tr>
+        <tr>
+          <td>Atlas Page Size</td>
+          <td id="configPageSize">-</td>
+        </tr>
+        <tr>
+          <td>Atlas Min Backoff</td>
+          <td id="configMinBackoff">-</td>
+        </tr>
+        <tr>
+          <td>Stress Concurrency</td>
+          <td id="configStressConcurrency">-</td>
+        </tr>
+        <tr>
+          <td>Stress Delay</td>
+          <td id="configStressDelay">-</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
   <div class="chart"><canvas id="chart"></canvas></div>
   <h2>Retry-After (when 429 hit)</h2>
   <div class="chart"><canvas id="retryChart"></canvas></div>
@@ -114,6 +180,20 @@
           document.getElementById('atlas429').textContent = d.total.atlas_429;
           document.getElementById('inboundRetryAfter').textContent = d.total.inbound_retry_after_s || 0;
           document.getElementById('atlasRetryAfter').textContent = d.total.atlas_retry_after_ms || 0;
+
+          // Update configuration values
+          if (d.config) {
+            document.getElementById('configInboundLimit').textContent = d.config.inbound_rate_limit || '-';
+            document.getElementById('configInboundWindow').textContent = d.config.inbound_rate_window || '-';
+            document.getElementById('configInboundRetryAfter').textContent = d.config.inbound_retry_after || '-';
+            document.getElementById('configBucketMaxStale').textContent = d.config.inbound_bucket_max_stale || '-';
+            document.getElementById('configBucketEvictThreshold').textContent = d.config.inbound_bucket_evict_threshold || '-';
+            document.getElementById('configCacheTTL').textContent = d.config.live_cache_ttl || '-';
+            document.getElementById('configPageSize').textContent = d.config.atlas_page_size || '-';
+            document.getElementById('configMinBackoff').textContent = d.config.atlas_min_backoff || '-';
+            document.getElementById('configStressConcurrency').textContent = d.config.stress_concurrency || '-';
+            document.getElementById('configStressDelay').textContent = d.config.stress_delay || '-';
+          }
 
           const h = d.history || [];
           const labels = h.map(s => new Date(s.t * 1000).toLocaleTimeString());

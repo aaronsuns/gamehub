@@ -75,3 +75,13 @@ func AtlasClientTimeout() time.Duration {
 func AtlasOutboundMinBackoff() time.Duration {
 	return envDuration("GAMEHUB_ATLAS_OUTBOUND_MIN_BACKOFF", time.Second)
 }
+
+// StressConcurrency returns stress test concurrency setting. Env: STRESS_CONCURRENCY.
+func StressConcurrency() int {
+	return envInt("STRESS_CONCURRENCY", 4)
+}
+
+// StressDelay returns stress test delay setting. Env: STRESS_DELAY.
+func StressDelay() time.Duration {
+	return envDuration("STRESS_DELAY", 500*time.Millisecond)
+}
